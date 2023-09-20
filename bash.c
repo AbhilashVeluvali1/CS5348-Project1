@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
+#include <stdbool.h>
 
 void printError();
 // global variables
@@ -74,15 +75,38 @@ char *pathCmd(char **token)
   }
   return path;
 }
+// method to redirect
+int checkRedirections(char **token)
+{
+  int isRedirect = -1, i = 0;
+  while (strcmp(token[i], ">") != 0)
+  {
+    i++;
+  }
+  if (strcmp(token[i], ">") == 0)
+  {
+    isRedirect = i;
+    printf("isRedirect%d\n", isRedirect);
+    return isRedirect;
+  }
+  printf("isRedirect%d\n", isRedirect);
+  return isRedirect;
+}
 int main()
 {
   char *builtInCmds[] = {"cd", "exit", "path"};
   size_t bufferLen = 0;
   char *buffer = malloc(bufferLen * sizeof(char));
+
+  bool isRedirect = false;
+
   printf("dash> ");
   while (1)
   {
     getline(&buffer, &bufferLen, stdin);
+    if(strstr(buffer, ">" ) != NULL){
+    isRedirect = true;
+     }
     char *delim = "\t\r\n\v\f ";
     char **tokens = parse(buffer, delim);
     if (strcmp(tokens[0], "exit") == 0)
@@ -114,10 +138,13 @@ int main()
           char *searchPath = strcat(pathToken[i], tokens[0]);
           if (access(searchPath, X_OK) == 0)
           {
-            if (execv(searchPath, tokens) == -1)
-            {
-              printError();
-            }
+              if(isRedirect != true){
+                if (execv(searchPath, tokens) == -1)
+              {
+                printError();
+              }
+              }
+              
           }
           i++;
         }
@@ -126,7 +153,7 @@ int main()
       {
         wait(0);
       }
-    } 
+    }
     printf("dash> ");
   }
   return 0;
