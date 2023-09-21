@@ -6,6 +6,8 @@
 #include <stdbool.h>
 
 void printError();
+void batchMode(FILE *f, char *buffer);
+void interactive(char *buffer);
 // global variables
 char path[100] = "/bin/";
 
@@ -92,69 +94,124 @@ int checkRedirections(char **token)
   printf("isRedirect%d\n", isRedirect);
   return isRedirect;
 }
-int main()
+// evecv Method
+void execute(char **token, char *path)
+{
+  char *delim = "|";
+  char **pathToken = parse(path, delim);
+  int i = 0;
+  while (pathToken[i] != NULL)
+  {
+    char *searchPath = strcat(pathToken[i], token[0]);
+    if (access(searchPath, X_OK) == 0)
+    {
+      if (execv(searchPath, token) == -1)
+      {
+        printError();
+      }
+    }
+    i++;
+  }
+}
+// driver method
+int main(int argc, const char *argv[])
 {
   char *builtInCmds[] = {"cd", "exit", "path"};
   size_t bufferLen = 0;
   char *buffer = malloc(bufferLen * sizeof(char));
-
-  bool isRedirect = false;
-
+  // batch mode
+  if (argv[1] != NULL)
+  {
+    const char *file = argv[1];
+    FILE *f = fopen(file, "r");
+    while(getline(&buffer, &bufferLen, f) != -1){
+      batchMode(f, buffer);
+    }
+    fclose(f);
+    exit(0); 
+  }
+  // Interactive mode
   printf("dash> ");
   while (1)
   {
     getline(&buffer, &bufferLen, stdin);
-    if(strstr(buffer, ">" ) != NULL){
-    isRedirect = true;
-     }
-    char *delim = "\t\r\n\v\f ";
-    char **tokens = parse(buffer, delim);
-    if (strcmp(tokens[0], "exit") == 0)
-    {
-      builtInCmdExit(tokens[1]);
-    }
-    else if (strcmp(tokens[0], "path") == 0)
-    {
-      pathCmd(tokens);
-    }
-    else if (strcmp(tokens[0], "cd") == 0)
-    {
-      chdirCmd(tokens);
-    }
-    else
-    {
-      int cPid = fork();
-      if (cPid == -1)
-      {
-        printError();
-      }
-      else if (cPid == 0)
-      {
-        char *delim = "|";
-        char **pathToken = parse(path, delim);
-        int i = 0;
-        while (pathToken[i] != NULL)
-        {
-          char *searchPath = strcat(pathToken[i], tokens[0]);
-          if (access(searchPath, X_OK) == 0)
-          {
-              if(isRedirect != true){
-                if (execv(searchPath, tokens) == -1)
-              {
-                printError();
-              }
-              }
-              
-          }
-          i++;
-        }
-      }
-      else
-      {
-        wait(0);
-      }
-    }
+    interactive(buffer);
     printf("dash> ");
   }
   return 0;
+}
+
+//batchMode method
+void batchMode(FILE *f, char *buffer)
+{
+  if (f != NULL)
+  {
+      char *delim = "\n ";
+      char **tokens = parse(buffer, delim);
+      int i = 0;
+      if (strcmp(tokens[0], "exit") == 0)
+      {
+        builtInCmdExit(tokens[1]);
+      }
+      else if (strcmp(tokens[0], "path") == 0)
+      {
+        pathCmd(tokens);
+      }
+      else if (strcmp(tokens[0], "cd") == 0)
+      {
+        chdirCmd(tokens);
+      }
+      else
+      {
+        int cPid = fork();
+        if (cPid == -1)
+        {
+          perror("fork");
+        }
+        else if (cPid == 0)
+        {
+          //char *searchPath = strcat(path, tokens[0]);
+          execute(tokens, path);
+        }
+        else
+        {
+          wait(NULL);
+        }
+      }
+  }
+}
+
+//interactiveMode method
+void interactive(char *buffer)
+{
+  char *delim = "\t\r\n\v\f ";
+  char **tokens = parse(buffer, delim);
+  if (strcmp(tokens[0], "exit") == 0)
+  {
+    builtInCmdExit(tokens[1]);
+  }
+  else if (strcmp(tokens[0], "path") == 0)
+  {
+    pathCmd(tokens);
+  }
+  else if (strcmp(tokens[0], "cd") == 0)
+  {
+    chdirCmd(tokens);
+  }
+  else
+  {
+    int cPid = fork();
+    if (cPid == -1)
+    {
+      printError();
+    }
+    else if (cPid == 0)
+    {
+      execute(tokens, path);
+    }
+    else
+    {
+      wait(0);
+    }
+  }
 }
